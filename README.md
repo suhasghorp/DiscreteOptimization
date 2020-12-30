@@ -17,4 +17,5 @@ Traveling Salesman problem - OR-Tools for small number of locations to visit, Co
 Facilities Location problem - Gurobi (tooks 2 hours to finish last problem of 2000 facilities with 2000 customers)
 
 Vehicle Routing problem - PySCIPOpt (required a different strategy for customer count > 20)
+This is THE TOUGHEST problem of the course!!!
 
