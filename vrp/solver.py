@@ -3,8 +3,6 @@
 
 import math
 import networkx
-import random
-import itertools
 from collections import namedtuple, OrderedDict
 from pyscipopt import Model, quicksum, multidict, Conshdlr, SCIP_RESULT, SCIP_PRESOLTIMING, SCIP_PROPTIMING
 from datetime import datetime
@@ -14,12 +12,7 @@ def length(customer1, customer2):
     return math.sqrt((customer1.x - customer2.x)**2 + (customer1.y - customer2.y)**2)
 
 def dist_between_nodes(node_to_check, nodes, c):
-    """
-    Checks the total distance between one node and a list of other nodes
-    :param nodes: list of nodes to compare
-    :param node_to_check: the node that will be compared to the other ones
-    :return: the sum of distances
-    """
+
     sum = 0
     for node in nodes:
         sum += c[(node_to_check[0], node[0])]
@@ -50,11 +43,10 @@ def solve_it(input_data):
     depot = customers[0]
 
     obj = None
-    # obj, vehicle_tours = trivial_solver(customers, depot, vehicle_count, vehicle_capacity)
-    # obj, vehicle_tours = gurobi_solver(customers, customer_count, vehicle_count, vehicle_capacity)
+
     if customer_count <= 20:
         obj, vehicle_tours = scip_solver_2(customers, customer_count, vehicle_count, vehicle_capacity)
-    # obj, vehicle_tours = scip_solver_3(customers, customer_count, vehicle_count, vehicle_capacity)
+
     else:
         obj, vehicle_tours = scip_solver_4(customers, customer_count, vehicle_count, vehicle_capacity)
 
@@ -92,23 +84,10 @@ def scip_solver_2(customers, customer_count, vehicle_count, vehicle_capacity):
         model.addCons(quicksum(x[j, i] for j in c_range if j < i) +
                       quicksum(x[i, j] for j in c_range if j > i) == 2, "Degree(%s)" % i)
 
-        # model.addCons(quicksum(x[j, i] * w[j, i] for j in c_range if j < i) +
-        #              quicksum(x[i, j] * w[i, j] for j in c_range if j > i) <= 2*vehicle_capacity)
 
-        # for j in cd_range:
-        #    for z in cd_range:
-        #        if j > i and z > j:
-        #            x[i, j] + x[j, z] + x[i, z] <= 2
-
-        # for j in c_range:
-        #    if j > i:
-        #        model.addCons(x[i, j] * w[i, j] <= vehicle_capacity)
 
     model.setObjective(quicksum(d[i, j] * x[i, j] for i in c_range for j in c_range if j > i), "minimize")
 
-    # model.hideOutput()
-
-    # mip_gaps = [0.9, 0.5, 0.2, 0.03]
     mip_gaps = [0.0]
     runs = 0
 
@@ -116,16 +95,8 @@ def scip_solver_2(customers, customer_count, vehicle_count, vehicle_capacity):
     for gap in mip_gaps:
         model.freeTransform()
         model.setRealParam("limits/gap", gap)
-        # model.setRealParam("limits/absgap", 0.3)
         model.setRealParam("limits/time", 60 * 20)  # Time limit in seconds
-        # model.setIntParam('limits/bestsol', 1)
-
         edges, final_edges, runs = optimize(customer_count, customers, model, vehicle_capacity, vehicle_count, x)
-
-    # model.setIntParam('limits/bestsol', -1)
-    # model.freeTransform()
-    # model.setRealParam("limits/gap", 0)
-    # edges, final_edges = optimize(customer_count, customers, model, vehicle_capacity, vehicle_count, x)
 
     run_time = datetime.now() - start
 
@@ -136,7 +107,7 @@ def scip_solver_2(customers, customer_count, vehicle_count, vehicle_capacity):
         output[i] = []
         current_item = None
         if len(final_edges) > 0:
-            # Get the first edge starting with 0
+
             for e in final_edges:
                 if e[0] == 0:
                     current_item = e
@@ -153,8 +124,7 @@ def scip_solver_2(customers, customer_count, vehicle_count, vehicle_capacity):
                         a_edge = edge[0]
                         b_edge = edge[1]
 
-                        # If we find the node connecting with a 0
-                        # it means the cycle has been closed
+
                         if b_edge == current_node and a_edge == 0:
                             final_edges.remove(edge)
                             break
@@ -210,8 +180,7 @@ def optimize(customer_count, customers, model, vehicle_capacity, vehicle_count, 
     return edges, final_edges, runs
 
 def addcut(cut_edges, model, customers, vehicle_capacity, x):
-    """addcut: add constraint to eliminate infeasible solutions
-    """
+
     G = networkx.Graph()
     G.add_edges_from(cut_edges)
     Components = networkx.connected_components(G)
@@ -223,15 +192,14 @@ def addcut(cut_edges, model, customers, vehicle_capacity, x):
         NS = int(math.ceil(float(q_sum) / vehicle_capacity))
         S_edges = [(i, j) for i in S for j in S if i < j and (i, j) in cut_edges]
         if S_card >= 3 and (len(S_edges) >= S_card or NS > 1):
-            # if (len(S_edges) >= S_card or NS > 1):
+
             model.addCons(quicksum(x[i, j] for i in S for j in S if j > i) <= S_card - NS)
-            # model.addCons(quicksum(x[i, j] * (customers[i].demand + customers[j].demand)
-            #                                  for (i, j) in cut_edges) <= 2*vehicle_capacity)
+
             cut = True
     return cut
 
 def scip_solver_4(customers, customer_count, vehicle_count, vehicle_capacity):
-    # Setting up basic variables
+
     K = vehicle_count
     n = customer_count
     b = vehicle_capacity
@@ -268,9 +236,7 @@ def vehicle_assignment_solver(K, a, b, c, customer_count, predefined_vehicle_ind
     c_range = range(1, customer_count)
     samples = []
 
-    # First we set the K seeds to use on the clustering
-    # Dummy method: order by the customer demand and put the first one in one of the vehicles
-    # For the remaining K-1 vehicles, choose the nodes most distance from each other
+
     a_ord = sorted(a.items(), key=lambda k: k[1])
     a_ord.reverse()
     samples.append(a_ord[0])
@@ -287,15 +253,6 @@ def vehicle_assignment_solver(K, a, b, c, customer_count, predefined_vehicle_ind
     w = {}
     for i in v_range:
         w[i] = samples[i][0]
-
-    # else:
-    # Dummy method: just get random items
-    # sample = random.sample(c_range, current_num_v)
-    # if sample in generated_samples:
-    #    print("Sample already used. Generating a new one...")
-    #    sample = random.sample(c_range, K)
-
-    # generated_samples.append(sample)
 
     # Resolve MIP problem to find the best possible vehicle-customers combinations
     model = Model("vrp_vehicles")
@@ -332,10 +289,6 @@ def vehicle_assignment_solver(K, a, b, c, customer_count, predefined_vehicle_ind
     model.setObjective(quicksum(quicksum(cost_of_new_customer_in_vehicle(c, i, w[v])*y[i, v]
                                          for i in c_range) for v in v_range), "maximize")
 
-    #model.setObjective(quicksum(
-    #    quicksum((c[(i, j)] * y[i, v]) + (c[(i, j)] * y[j, v]) for i in c_range for j in c_range if i != j) for v in
-    #    v_range), "minimize")
-
     model.optimize()
     # best_sol = model.getBestSol()
     vehicle_tours = {}
@@ -346,10 +299,9 @@ def vehicle_assignment_solver(K, a, b, c, customer_count, predefined_vehicle_ind
             val = model.getVal(y[i, v])
             if val > 0.5:
                 vehicle_tours[v].append(i)
-    # obj = model.getSolObjVal(best_sol)
+
     obj = model.getObjVal()
-    # print(obj)
-    # print(vehicle_tours)
+
     return obj, vehicle_tours
 
 def tsp_solver(c, customers, vehicle_tours):
@@ -372,7 +324,7 @@ def tsp_solver(c, customers, vehicle_tours):
     for key, value in vehicle_tours.items():
         v_customers = value
         model = Model("vrp_tsp")
-        #model.hideOutput()
+
         x = {}
 
         for i in v_customers:
@@ -432,10 +384,7 @@ def tsp_solver(c, customers, vehicle_tours):
         final_obj += obj
         final_tours.append([customers[i] for i in path])
 
-        # print("Customers visited by vehicle %s: %s" % (key, value))
-        # print("Objective cost for vehicle %s: %s" % (key, obj))
-        # print("Edges visited by vehicle %s: %s" % (key, edges))
-        # print("Path visited by vehicle %s: %s" % (key, path))
+
     return final_obj, final_tours
 
 import sys
